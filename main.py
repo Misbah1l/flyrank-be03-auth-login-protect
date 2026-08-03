@@ -1,6 +1,7 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel
 from supabase_client import supabase
+
 
 app = FastAPI(
     title="BE-03 Auth API",
@@ -63,3 +64,23 @@ def login(user: UserAuth):
             status_code=401,
             detail="Invalid login credentials"
         )
+@app.get("/public/info")
+def public_info():
+    return {
+        "message": "Welcome stranger! This info is public."
+    }
+@app.get("/protected/profile")
+def protected_profile(authorization: str = Header(None)):
+
+    if authorization is None or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=401,
+            detail="Access token required"
+        )
+
+    token = authorization.replace("Bearer ", "")
+
+    return {
+        "message": "Token received successfully",
+        "token": token
+    }
