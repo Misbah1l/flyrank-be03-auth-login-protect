@@ -1,14 +1,13 @@
 from fastapi import FastAPI, HTTPException, Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from supabase_client import supabase
+from auth_middleware import verify_token
 
 
 app = FastAPI(
     title="BE-03 Auth API",
     version="1.0.0"
 )
-security = HTTPBearer()
 
 class UserAuth(BaseModel):
     email: str
@@ -79,24 +78,23 @@ def public_info():
     return {
         "message": "Welcome stranger! This info is public."
     }
-@app.get("/protected/profile")
-def protected_profile(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
-):
 
-    token = credentials.credentials
-
+@app.post("/auth/logout", status_code=204)
+def logout():
     try:
-        response = supabase.auth.get_user(token)
-
-        return {
-            "id": response.user.id,
-            "email": response.user.email,
-            "created_at": response.user.created_at
-        }
+        supabase.auth.sign_out()
+        return
 
     except Exception:
         raise HTTPException(
             status_code=401,
-            detail="Invalid or expired token"
+            detail="Logout failed"
         )
+    
+@app.get("/protected/profile")
+def protected_profile(user=Depends(verify_token)):
+    return {
+        "id": user.id,
+        "email": user.email,
+        "created_at": user.created_at
+    }
