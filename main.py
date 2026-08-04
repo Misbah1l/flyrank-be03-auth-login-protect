@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from supabase_client import supabase
 
@@ -7,6 +8,7 @@ app = FastAPI(
     title="BE-03 Auth API",
     version="1.0.0"
 )
+security = HTTPBearer()
 
 class UserAuth(BaseModel):
     email: str
@@ -26,17 +28,25 @@ def signup(user: UserAuth):
             detail="Email and password are required"
         )
 
-    response = supabase.auth.sign_up(
-        {
-            "email": user.email,
-            "password": user.password,
-        }
-    )
+    try:
+        response = supabase.auth.sign_up(
+            {
+                "email": user.email,
+                "password": user.password,
+            }
+        )
 
-    return {
-        "message": "User created successfully",
-        "user": response.user
-    }
+        return {
+            "message": "User created successfully",
+            "user": response.user
+        }
+
+    except Exception as e:
+        print("SIGNUP ERROR:", e)
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
 @app.post("/auth/login")
 def login(user: UserAuth):
 
@@ -70,17 +80,23 @@ def public_info():
         "message": "Welcome stranger! This info is public."
     }
 @app.get("/protected/profile")
-def protected_profile(authorization: str = Header(None)):
+def protected_profile(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
 
-    if authorization is None or not authorization.startswith("Bearer "):
+    token = credentials.credentials
+
+    try:
+        response = supabase.auth.get_user(token)
+
+        return {
+            "id": response.user.id,
+            "email": response.user.email,
+            "created_at": response.user.created_at
+        }
+
+    except Exception:
         raise HTTPException(
             status_code=401,
-            detail="Access token required"
+            detail="Invalid or expired token"
         )
-
-    token = authorization.replace("Bearer ", "")
-
-    return {
-        "message": "Token received successfully",
-        "token": token
-    }
